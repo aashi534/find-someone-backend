@@ -9,6 +9,7 @@ import com.findsomeone.entity.*;
 import com.findsomeone.repository.ConnectionMessageRepository;
 import com.findsomeone.repository.ConnectionRepository;
 import com.findsomeone.repository.ConnectionRequestRepository;
+import com.findsomeone.repository.UserBlockRepository;
 import com.findsomeone.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -27,16 +28,19 @@ public class ConnectionService {
     private final ConnectionRequestRepository requestRepository;
     private final ConnectionRepository connectionRepository;
     private final ConnectionMessageRepository messageRepository;
+    private final UserBlockRepository blockRepository;
 
     public ConnectionService(
             UserRepository userRepository,
             ConnectionRequestRepository requestRepository,
             ConnectionRepository connectionRepository,
-            ConnectionMessageRepository messageRepository) {
+            ConnectionMessageRepository messageRepository,
+            UserBlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.requestRepository = requestRepository;
         this.connectionRepository = connectionRepository;
         this.messageRepository = messageRepository;
+        this.blockRepository = blockRepository;
     }
 
     @Transactional
@@ -47,6 +51,9 @@ public class ConnectionService {
         if (requesterId.equals(input.recipientId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "You cannot connect with yourself");
+        }
+        if (blockRepository.existsBetweenUsers(requesterId, input.recipientId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         if (!recipient.isDiscoverable()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -85,14 +92,22 @@ public class ConnectionService {
 
     @Transactional(readOnly = true)
     public List<ConnectionRequestResponse> incomingRequests(Long userId) {
+        Set<Long> blockedUserIds = Set.copyOf(
+                blockRepository.findAllBlockedUserIds(userId));
         return requestRepository.findByRecipientIdOrderByCreatedAtDesc(userId)
-                .stream().map(this::toRequest).toList();
+                .stream().filter(request -> !blockedUserIds.contains(
+                        request.getRequester().getId()))
+                .map(this::toRequest).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ConnectionRequestResponse> outgoingRequests(Long userId) {
+        Set<Long> blockedUserIds = Set.copyOf(
+                blockRepository.findAllBlockedUserIds(userId));
         return requestRepository.findByRequesterIdOrderByCreatedAtDesc(userId)
-                .stream().map(this::toRequest).toList();
+                .stream().filter(request -> !blockedUserIds.contains(
+                        request.getRecipient().getId()))
+                .map(this::toRequest).toList();
     }
 
     @Transactional
@@ -107,6 +122,11 @@ public class ConnectionService {
         if (request.getStatus() != ConnectionRequestStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Only pending requests can be accepted");
+        }
+        if (blockRepository.existsBetweenUsers(request.getRequester().getId(),
+                request.getRecipient().getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This request is no longer available");
         }
 
         User requester = request.getRequester();
@@ -163,7 +183,13 @@ public class ConnectionService {
 
     @Transactional(readOnly = true)
     public List<ConnectionResponse> connections(Long userId) {
+        Set<Long> blockedUserIds = Set.copyOf(
+                blockRepository.findAllBlockedUserIds(userId));
         return connectionRepository.findAllForUser(userId).stream()
+                .filter(connection -> !blockedUserIds.contains(
+                        connection.getUserOne().getId().equals(userId)
+                                ? connection.getUserTwo().getId()
+                                : connection.getUserOne().getId()))
                 .map(connection -> toConnection(connection, userId)).toList();
     }
 
@@ -203,6 +229,12 @@ public class ConnectionService {
                 && !connection.getUserTwo().getId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "You are not a participant in this connection");
+        }
+        Long otherUserId = connection.getUserOne().getId().equals(userId)
+                ? connection.getUserTwo().getId() : connection.getUserOne().getId();
+        if (blockRepository.existsBetweenUsers(userId, otherUserId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Connection not found");
         }
         return connection;
     }

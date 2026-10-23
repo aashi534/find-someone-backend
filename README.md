@@ -25,8 +25,6 @@ A Spring Boot REST API for trusted social and professional connections and local
 4. Run the application with Java 21 and Maven: `mvn spring-boot:run`.
 5. Start sign-in at `/oauth2/authorization/linkedin`. On successful sign-in, the callback returns JSON containing an application JWT. Send it on API calls as `Authorization: Bearer <accessToken>`.
 
-The archive did not include Maven Wrapper configuration, so use an installed Maven distribution or add the standard wrapper files before relying on `./mvnw`.
-
 ## Connection API
 
 All routes below require a valid application JWT.
@@ -46,6 +44,10 @@ All routes below require a valid application JWT.
 | `GET` | `/connections` | List accepted connections |
 | `POST` | `/connections/{id}/messages` | Send a message to an accepted connection |
 | `GET` | `/connections/{id}/messages?page=0&size=50` | Read message history |
+| `POST` | `/safety/blocks/{userId}` | Block a member and cancel pending requests between you |
+| `GET` | `/safety/blocks` | List members you blocked |
+| `DELETE` | `/safety/blocks/{userId}` | Unblock a member |
+| `POST` | `/safety/reports` | Submit a report for moderation review |
 
 Example request body:
 
@@ -57,8 +59,10 @@ Example request body:
 }
 ```
 
+To report a member, send `reportedUserId`, a `reason` (`HARASSMENT`, `FAKE_IDENTITY`, `SCAM_OR_SPAM`, `INAPPROPRIATE_CONTENT`, or `OTHER`), and optional `details` (up to 2,000 characters). A block hides both profiles from discovery and connections, prevents new connection requests and messages, and can be reversed by unblocking. Reports are stored as `OPEN`; an admin review workflow is not included yet.
+
 ## Trust and safety status
 
-LinkedIn sign-in authenticates the LinkedIn account; it does not verify the member's real-world identity. The identity-verification field remains `UNVERIFIED` until a trusted provider integration is added. The professional-chat AI checks, phone/email OTP, block/report workflows, moderation tooling, and identity-provider integration are not implemented in this initial foundation. Do not treat the status field as proof that a member has been verified.
+LinkedIn sign-in authenticates the LinkedIn account; it does not verify the member's real-world identity. The identity-verification field remains `UNVERIFIED` until a trusted provider integration is added. This release has block and report submission workflows, but no admin review tooling, phone/email OTP, or professional-chat AI checks. Do not treat the status field as proof that a member has been verified.
 
 Before adding Aadhaar verification, decide on a consent-based verification provider or implement UIDAI's offline verification rules with legal/privacy review. Store verification results and the minimum required metadata, not uploaded identity documents or full Aadhaar numbers.

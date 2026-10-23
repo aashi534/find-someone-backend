@@ -20,6 +20,15 @@ public interface ConnectionRequestRepository extends JpaRepository<ConnectionReq
     List<ConnectionRequest> findByRecipientIdOrderByCreatedAtDesc(Long recipientId);
     List<ConnectionRequest> findByRequesterIdOrderByCreatedAtDesc(Long requesterId);
 
+    @Query("select r from ConnectionRequest r where "
+            + "((r.requester.id = :userOneId and r.recipient.id = :userTwoId) or "
+            + "(r.requester.id = :userTwoId and r.recipient.id = :userOneId)) "
+            + "and r.status = :status")
+    List<ConnectionRequest> findBetweenUsersWithStatus(
+            @Param("userOneId") Long userOneId,
+            @Param("userTwoId") Long userTwoId,
+            @Param("status") ConnectionRequestStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from ConnectionRequest r where r.id = :id")
     Optional<ConnectionRequest> findByIdForUpdate(@Param("id") Long id);

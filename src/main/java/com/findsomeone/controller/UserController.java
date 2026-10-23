@@ -24,12 +24,12 @@ public class UserController {
     /** Public profile directory; only members who opted into discovery are returned. */
     @GetMapping
     public List<UserProfileResponse> getDiscoverableUsers() {
-        return userService.getDiscoverableUsers();
+        return userService.getDiscoverableUsers(currentUserId());
     }
 
     @GetMapping("/{id}")
     public UserProfileResponse getUser(@PathVariable Long id) {
-        return userService.getDiscoverableUser(id);
+        return userService.getDiscoverableUser(id, currentUserId());
     }
 
     @GetMapping("/me")
