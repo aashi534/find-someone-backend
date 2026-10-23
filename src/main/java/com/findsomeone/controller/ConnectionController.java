@@ -1,6 +1,7 @@
 package com.findsomeone.controller;
 
 import com.findsomeone.dto.*;
+import com.findsomeone.entity.ConnectionPurpose;
 import com.findsomeone.service.ConnectionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -71,10 +72,11 @@ public class ConnectionController {
     @GetMapping("/{connectionId}/messages")
     public List<MessageResponse> messages(
             @PathVariable Long connectionId,
+            @RequestParam(required = false) ConnectionPurpose purpose,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         return connectionService.messages(
-                connectionId, currentUserId(), page, size);
+                connectionId, currentUserId(), purpose, page, size);
     }
 
     private Long currentUserId() {

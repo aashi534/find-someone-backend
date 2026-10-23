@@ -197,26 +197,35 @@ public class ConnectionService {
     public MessageResponse sendMessage(Long connectionId, Long senderId,
                                        SendMessageRequest input) {
         Connection connection = findConnectionForUser(connectionId, senderId);
+        if (!connection.getPurposes().contains(input.purpose())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This connection is not active for that purpose");
+        }
         User sender = findUser(senderId);
         ConnectionMessage message = new ConnectionMessage();
         message.setConnection(connection);
         message.setSender(sender);
         message.setBody(input.body().trim());
+        message.setPurpose(input.purpose());
         return toMessage(messageRepository.save(message));
     }
 
     @Transactional(readOnly = true)
     public List<MessageResponse> messages(Long connectionId, Long userId,
+                                          ConnectionPurpose purpose,
                                           int page, int size) {
         findConnectionForUser(connectionId, userId);
         if (page < 0 || size < 1 || size > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "page must be >= 0 and size must be between 1 and 100");
         }
-        List<MessageResponse> result = new ArrayList<>(messageRepository
-                .findByConnectionIdOrderByCreatedAtDesc(connectionId,
-                        PageRequest.of(page, size))
-                .stream().map(this::toMessage).toList());
+        var messagePage = purpose == null
+                ? messageRepository.findByConnectionIdOrderByCreatedAtDesc(
+                        connectionId, PageRequest.of(page, size))
+                : messageRepository.findByConnectionIdAndPurposeOrderByCreatedAtDesc(
+                        connectionId, purpose, PageRequest.of(page, size));
+        List<MessageResponse> result = new ArrayList<>(messagePage.stream()
+                .map(this::toMessage).toList());
         java.util.Collections.reverse(result);
         return result;
     }
@@ -261,6 +270,7 @@ public class ConnectionService {
 
     private MessageResponse toMessage(ConnectionMessage message) {
         return new MessageResponse(message.getId(), message.getSender().getId(),
-                message.getSender().getName(), message.getBody(), message.getCreatedAt());
+                message.getSender().getName(), message.getBody(),
+                message.getPurpose(), message.getCreatedAt());
     }
 }

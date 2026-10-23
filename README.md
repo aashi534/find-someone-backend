@@ -42,8 +42,8 @@ All routes below require a valid application JWT.
 | `PATCH` | `/connections/requests/{id}/decline` | Decline a request |
 | `DELETE` | `/connections/requests/{id}` | Cancel a pending request you sent |
 | `GET` | `/connections` | List accepted connections |
-| `POST` | `/connections/{id}/messages` | Send a message to an accepted connection |
-| `GET` | `/connections/{id}/messages?page=0&size=50` | Read message history |
+| `POST` | `/connections/{id}/messages` | Send a message tagged with an accepted connection purpose |
+| `GET` | `/connections/{id}/messages?purpose=CAREER_GUIDANCE&page=0&size=50` | Read all messages or filter history by purpose |
 | `POST` | `/safety/blocks/{userId}` | Block a member and cancel pending requests between you |
 | `GET` | `/safety/blocks` | List members you blocked |
 | `DELETE` | `/safety/blocks/{userId}` | Unblock a member |
@@ -58,6 +58,17 @@ Example request body:
   "note": "I would value your perspective on backend engineering roles."
 }
 ```
+
+Every new chat message must include the purpose it belongs to:
+
+```json
+{
+  "body": "Would you be open to a short conversation about backend interviews?",
+  "purpose": "CAREER_GUIDANCE"
+}
+```
+
+The purpose must already be accepted on that connection. Messages created before purpose labelling was added remain available with a null purpose.
 
 To report a member, send `reportedUserId`, a `reason` (`HARASSMENT`, `FAKE_IDENTITY`, `SCAM_OR_SPAM`, `INAPPROPRIATE_CONTENT`, or `OTHER`), and optional `details` (up to 2,000 characters). A block hides both profiles from discovery and connections, prevents new connection requests and messages, and can be reversed by unblocking. Reports are stored as `OPEN`; an admin review workflow is not included yet.
 

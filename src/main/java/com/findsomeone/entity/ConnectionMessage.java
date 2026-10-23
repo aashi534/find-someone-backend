@@ -24,6 +24,11 @@ public class ConnectionMessage {
     @Column(nullable = false, length = 5000)
     private String body;
 
+    // Nullable so messages created before purpose-labelled chats can be retained.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private ConnectionPurpose purpose;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -39,5 +44,7 @@ public class ConnectionMessage {
     public void setSender(User sender) { this.sender = sender; }
     public String getBody() { return body; }
     public void setBody(String body) { this.body = body; }
+    public ConnectionPurpose getPurpose() { return purpose; }
+    public void setPurpose(ConnectionPurpose purpose) { this.purpose = purpose; }
     public Instant getCreatedAt() { return createdAt; }
 }
