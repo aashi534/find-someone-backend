@@ -22,19 +22,22 @@ public class MeetupRequestService {
     private final MeetupRepository meetupRepository;
     private final MeetupParticipantRepository meetupParticipantRepository;
     private final UserBlockRepository userBlockRepository;
+    private final NotificationService notificationService;
 
     public MeetupRequestService(
             MeetupRequestRepository meetupRequestRepository,
             UserRepository userRepository,
             MeetupRepository meetupRepository,
             MeetupParticipantRepository meetupParticipantRepository,
-            UserBlockRepository userBlockRepository) {
+            UserBlockRepository userBlockRepository,
+            NotificationService notificationService) {
 
         this.meetupRequestRepository = meetupRequestRepository;
         this.userRepository = userRepository;
         this.meetupRepository = meetupRepository;
         this.meetupParticipantRepository = meetupParticipantRepository;
         this.userBlockRepository = userBlockRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -109,7 +112,13 @@ public class MeetupRequestService {
         request.setRequester(user);
         request.setStatus(MeetupRequestStatus.PENDING);
 
-        return toResponse(meetupRequestRepository.save(request));
+        MeetupRequest savedRequest = meetupRequestRepository.save(request);
+        notificationService.create(meetup.getCreator(), user,
+                NotificationType.MEETUP_REQUEST_RECEIVED,
+                "New meetup join request",
+                user.getName() + " requested to join " + meetup.getTitle() + ".",
+                "MEETUP_REQUEST", savedRequest.getId());
+        return toResponse(savedRequest);
     }
 
     @Transactional
@@ -199,7 +208,13 @@ public class MeetupRequestService {
             meetupRepository.save(meetup);
         }
 
-        return toResponse(meetupRequestRepository.save(request));
+        MeetupRequest savedRequest = meetupRequestRepository.save(request);
+        notificationService.create(request.getRequester(), meetup.getCreator(),
+                NotificationType.MEETUP_REQUEST_ACCEPTED,
+                "Meetup request accepted",
+                "Your request to join " + meetup.getTitle() + " was accepted.",
+                "MEETUP_REQUEST", savedRequest.getId());
+        return toResponse(savedRequest);
     }
 
     @Transactional(readOnly = true)
@@ -245,7 +260,8 @@ public class MeetupRequestService {
                     "Only pending or accepted requests can be cancelled");
         }
 
-        if (request.getStatus() == MeetupRequestStatus.ACCEPTED) {
+        boolean wasAccepted = request.getStatus() == MeetupRequestStatus.ACCEPTED;
+        if (wasAccepted) {
             Meetup meetup = meetupRepository.findByIdForUpdate(
                     request.getMeetup().getId()).orElseThrow(() ->
                     new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -262,6 +278,17 @@ public class MeetupRequestService {
 
         request.setStatus(MeetupRequestStatus.CANCELLED);
         meetupRequestRepository.save(request);
+        User creator = request.getMeetup().getCreator();
+        notificationService.create(creator, request.getRequester(),
+                wasAccepted ? NotificationType.MEETUP_ATTENDEE_LEFT
+                        : NotificationType.MEETUP_REQUEST_CANCELLED,
+                wasAccepted ? "Attendee left meetup" : "Meetup request withdrawn",
+                wasAccepted
+                        ? request.getRequester().getName() + " left "
+                                + request.getMeetup().getTitle() + "."
+                        : request.getRequester().getName() + " withdrew their request to join "
+                                + request.getMeetup().getTitle() + ".",
+                "MEETUP_REQUEST", request.getId());
     }
 
     @Transactional
@@ -289,8 +316,14 @@ public class MeetupRequestService {
         }
 
         request.setStatus(MeetupRequestStatus.REJECTED);
-
-        return toResponse(meetupRequestRepository.save(request));
+        MeetupRequest savedRequest = meetupRequestRepository.save(request);
+        notificationService.create(request.getRequester(), request.getMeetup().getCreator(),
+                NotificationType.MEETUP_REQUEST_REJECTED,
+                "Meetup request declined",
+                "Your request to join " + request.getMeetup().getTitle()
+                        + " was declined.",
+                "MEETUP_REQUEST", savedRequest.getId());
+        return toResponse(savedRequest);
     }
 
     private MeetupRequestResponse toResponse(MeetupRequest request) {

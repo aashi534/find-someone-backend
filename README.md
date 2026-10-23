@@ -7,7 +7,8 @@ A Spring Boot REST API for trusted social and professional connections and local
 - LinkedIn OpenID Connect sign-in, followed by a short-lived application JWT.
 - Profiles with multiple connection purposes and an opt-in discoverability switch.
 - Purpose-aware connection requests, accept/decline/cancel, and accepted connections.
-- One-to-one message history over REST. Clients can poll for new messages; realtime delivery is not implemented yet.
+- One-to-one message history over REST, labelled by connection purpose. Clients can poll for new messages; realtime delivery is not implemented yet.
+- In-app notifications for connection requests and meetup RSVP changes, with unread counts and read controls.
 - Meetups tagged by category and style (`INFORMAL` or `FORMAL`), alongside the existing nearby search and RSVP request flow.
 - Identity-verification status is represented in profiles, but no identity-verification provider is connected. This app does not collect Aadhaar or other identity-document images.
 
@@ -48,6 +49,10 @@ All routes below require a valid application JWT.
 | `GET` | `/safety/blocks` | List members you blocked |
 | `DELETE` | `/safety/blocks/{userId}` | Unblock a member |
 | `POST` | `/safety/reports` | Submit a report for moderation review |
+| `GET` | `/notifications?page=0&size=20` | Read your notifications |
+| `GET` | `/notifications/unread-count` | Get your unread notification count |
+| `PATCH` | `/notifications/{id}/read` | Mark one of your notifications as read |
+| `PATCH` | `/notifications/read-all` | Mark all your notifications as read |
 
 ## Meetup API
 
@@ -86,6 +91,8 @@ Every new chat message must include the purpose it belongs to:
 ```
 
 The purpose must already be accepted on that connection. Messages created before purpose labelling was added remain available with a null purpose.
+
+Notifications are stored in-app and can be fetched by polling the authenticated API. Email, SMS, and push delivery are not connected.
 
 To report a member, send `reportedUserId`, a `reason` (`HARASSMENT`, `FAKE_IDENTITY`, `SCAM_OR_SPAM`, `INAPPROPRIATE_CONTENT`, or `OTHER`), and optional `details` (up to 2,000 characters). A block hides both profiles from discovery and connections, prevents new connection requests and messages, and can be reversed by unblocking. Reports are stored as `OPEN`; an admin review workflow is not included yet.
 

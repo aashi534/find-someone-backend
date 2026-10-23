@@ -29,18 +29,21 @@ public class ConnectionService {
     private final ConnectionRepository connectionRepository;
     private final ConnectionMessageRepository messageRepository;
     private final UserBlockRepository blockRepository;
+    private final NotificationService notificationService;
 
     public ConnectionService(
             UserRepository userRepository,
             ConnectionRequestRepository requestRepository,
             ConnectionRepository connectionRepository,
             ConnectionMessageRepository messageRepository,
-            UserBlockRepository blockRepository) {
+            UserBlockRepository blockRepository,
+            NotificationService notificationService) {
         this.userRepository = userRepository;
         this.requestRepository = requestRepository;
         this.connectionRepository = connectionRepository;
         this.messageRepository = messageRepository;
         this.blockRepository = blockRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -87,7 +90,15 @@ public class ConnectionService {
         request.setPurpose(input.purpose());
         request.setNote(input.note() == null ? null : input.note().trim());
         request.setStatus(ConnectionRequestStatus.PENDING);
-        return toRequest(requestRepository.save(request));
+        ConnectionRequest savedRequest = requestRepository.save(request);
+        notificationService.create(recipient, requester,
+                NotificationType.CONNECTION_REQUEST_RECEIVED,
+                "New connection request",
+                requester.getName() + " sent you a "
+                        + input.purpose().name().toLowerCase().replace('_', ' ')
+                        + " connection request.",
+                "CONNECTION_REQUEST", savedRequest.getId());
+        return toRequest(savedRequest);
     }
 
     @Transactional(readOnly = true)
@@ -144,7 +155,15 @@ public class ConnectionService {
         connectionRepository.save(connection);
 
         request.setStatus(ConnectionRequestStatus.ACCEPTED);
-        return toRequest(requestRepository.save(request));
+        ConnectionRequest savedRequest = requestRepository.save(request);
+        notificationService.create(requester, recipient,
+                NotificationType.CONNECTION_REQUEST_ACCEPTED,
+                "Connection request accepted",
+                recipient.getName() + " accepted your "
+                        + request.getPurpose().name().toLowerCase().replace('_', ' ')
+                        + " connection request.",
+                "CONNECTION_REQUEST", savedRequest.getId());
+        return toRequest(savedRequest);
     }
 
     @Transactional
@@ -161,7 +180,13 @@ public class ConnectionService {
                     "Only pending requests can be declined");
         }
         request.setStatus(ConnectionRequestStatus.DECLINED);
-        return toRequest(requestRepository.save(request));
+        ConnectionRequest savedRequest = requestRepository.save(request);
+        notificationService.create(request.getRequester(), request.getRecipient(),
+                NotificationType.CONNECTION_REQUEST_DECLINED,
+                "Connection request declined",
+                request.getRecipient().getName() + " declined your connection request.",
+                "CONNECTION_REQUEST", savedRequest.getId());
+        return toRequest(savedRequest);
     }
 
     @Transactional
@@ -178,7 +203,12 @@ public class ConnectionService {
                     "Only pending requests can be cancelled");
         }
         request.setStatus(ConnectionRequestStatus.CANCELLED);
-        requestRepository.save(request);
+        ConnectionRequest savedRequest = requestRepository.save(request);
+        notificationService.create(request.getRecipient(), request.getRequester(),
+                NotificationType.CONNECTION_REQUEST_CANCELLED,
+                "Connection request withdrawn",
+                request.getRequester().getName() + " withdrew their connection request.",
+                "CONNECTION_REQUEST", savedRequest.getId());
     }
 
     @Transactional(readOnly = true)
