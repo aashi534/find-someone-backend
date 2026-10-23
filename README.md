@@ -32,7 +32,7 @@ All routes below require a valid application JWT.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/users` | List discoverable profiles |
+| `GET` | `/users?purpose=FRIENDSHIP&query=designer` | Search discoverable profiles by purpose and name/bio text (either filter is optional) |
 | `GET` | `/users/{id}` | View a discoverable profile |
 | `GET` | `/users/me` | View the signed-in profile |
 | `PATCH` | `/users/me` | Update name, bio, purposes, and discoverability |

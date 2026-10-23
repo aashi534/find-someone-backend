@@ -2,12 +2,14 @@ package com.findsomeone.controller;
 
 import com.findsomeone.dto.UpdateProfileRequest;
 import com.findsomeone.dto.UserProfileResponse;
-import com.findsomeone.entity.User;
+import com.findsomeone.entity.ConnectionPurpose;
 import com.findsomeone.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -23,8 +25,14 @@ public class UserController {
 
     /** Public profile directory; only members who opted into discovery are returned. */
     @GetMapping
-    public List<UserProfileResponse> getDiscoverableUsers() {
-        return userService.getDiscoverableUsers(currentUserId());
+    public List<UserProfileResponse> getDiscoverableUsers(
+            @RequestParam(required = false) ConnectionPurpose purpose,
+            @RequestParam(required = false) String query) {
+        if (query != null && query.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "query must be 100 characters or fewer");
+        }
+        return userService.getDiscoverableUsers(currentUserId(), purpose, query);
     }
 
     @GetMapping("/{id}")

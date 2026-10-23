@@ -3,6 +3,7 @@ package com.findsomeone.service;
 import com.findsomeone.dto.UpdateProfileRequest;
 import com.findsomeone.dto.UserProfileResponse;
 import com.findsomeone.entity.User;
+import com.findsomeone.entity.ConnectionPurpose;
 import com.findsomeone.repository.UserRepository;
 import com.findsomeone.repository.UserBlockRepository;
 import org.springframework.http.HttpStatus;
@@ -36,10 +37,13 @@ public class UserService {
         return toProfile(user);
     }
 
-    public List<UserProfileResponse> getDiscoverableUsers(Long viewerId) {
+    public List<UserProfileResponse> getDiscoverableUsers(
+            Long viewerId, ConnectionPurpose purpose, String query) {
         java.util.Set<Long> blockedUserIds = java.util.Set.copyOf(
                 blockRepository.findAllBlockedUserIds(viewerId));
-        return userRepository.findByDiscoverableTrueOrderByNameAsc()
+        String normalizedQuery = query == null || query.isBlank()
+                ? null : query.trim();
+        return userRepository.searchDiscoverableUsers(purpose, normalizedQuery)
                 .stream().filter(user -> !user.getId().equals(viewerId)
                         && !blockedUserIds.contains(user.getId()))
                 .map(this::toProfile).toList();
