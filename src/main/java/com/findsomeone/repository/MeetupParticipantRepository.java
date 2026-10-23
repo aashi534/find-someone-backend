@@ -9,4 +9,6 @@ public interface MeetupParticipantRepository
     boolean existsByMeetupIdAndUserId(Long meetupId, Long userId);
 
     long countByMeetupId(Long meetupId);
+
+    void deleteByMeetupIdAndUserId(Long meetupId, Long userId);
 }

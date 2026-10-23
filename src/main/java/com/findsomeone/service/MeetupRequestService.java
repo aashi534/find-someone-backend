@@ -1,10 +1,12 @@
 package com.findsomeone.service;
 
 import com.findsomeone.entity.*;
+import com.findsomeone.dto.MeetupRequestResponse;
 import com.findsomeone.repository.MeetupParticipantRepository;
 import com.findsomeone.repository.MeetupRepository;
 import com.findsomeone.repository.MeetupRequestRepository;
 import com.findsomeone.repository.UserRepository;
+import com.findsomeone.repository.UserBlockRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,20 +21,24 @@ public class MeetupRequestService {
     private final UserRepository userRepository;
     private final MeetupRepository meetupRepository;
     private final MeetupParticipantRepository meetupParticipantRepository;
+    private final UserBlockRepository userBlockRepository;
 
     public MeetupRequestService(
             MeetupRequestRepository meetupRequestRepository,
             UserRepository userRepository,
             MeetupRepository meetupRepository,
-            MeetupParticipantRepository meetupParticipantRepository) {
+            MeetupParticipantRepository meetupParticipantRepository,
+            UserBlockRepository userBlockRepository) {
 
         this.meetupRequestRepository = meetupRequestRepository;
         this.userRepository = userRepository;
         this.meetupRepository = meetupRepository;
         this.meetupParticipantRepository = meetupParticipantRepository;
+        this.userBlockRepository = userBlockRepository;
     }
 
-    public MeetupRequest requestToJoin(Long meetupId, Long userId) {
+    @Transactional
+    public MeetupRequestResponse requestToJoin(Long meetupId, Long userId) {
 
         Meetup meetup = meetupRepository.findById(meetupId)
                 .orElseThrow(() ->
@@ -63,6 +69,12 @@ public class MeetupRequestService {
                     HttpStatus.BAD_REQUEST,
                     "Creator cannot request to join their own meetup"
             );
+        }
+
+        if (userBlockRepository.existsBetweenUsers(
+                userId, meetup.getCreator().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Meetup not found");
         }
 
         if (meetupRequestRepository.existsByMeetupIdAndRequesterIdAndStatusIn(
@@ -97,13 +109,13 @@ public class MeetupRequestService {
         request.setRequester(user);
         request.setStatus(MeetupRequestStatus.PENDING);
 
-        return meetupRequestRepository.save(request);
+        return toResponse(meetupRequestRepository.save(request));
     }
 
     @Transactional
-    public MeetupRequest acceptRequest(Long requestId, Long userId) {
+    public MeetupRequestResponse acceptRequest(Long requestId, Long userId) {
 
-        MeetupRequest request = meetupRequestRepository.findById(requestId)
+        MeetupRequest request = meetupRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -130,6 +142,12 @@ public class MeetupRequestService {
                     HttpStatus.CONFLICT,
                     "Only pending requests can be accepted"
             );
+        }
+
+        if (userBlockRepository.existsBetweenUsers(
+                userId, request.getRequester().getId())) {
+            request.setStatus(MeetupRequestStatus.REJECTED);
+            return toResponse(meetupRequestRepository.save(request));
         }
 
 
@@ -181,16 +199,32 @@ public class MeetupRequestService {
             meetupRepository.save(meetup);
         }
 
-        return meetupRequestRepository.save(request);
+        return toResponse(meetupRequestRepository.save(request));
     }
 
-    public List<MeetupRequest> getAllRequests() {
-        return meetupRequestRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<MeetupRequestResponse> myRequests(Long userId) {
+        return meetupRequestRepository.findByRequesterIdOrderByIdDesc(userId)
+                .stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<MeetupRequestResponse> requestsForMeetup(Long meetupId, Long userId) {
+        Meetup meetup = meetupRepository.findById(meetupId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Meetup not found"));
+        if (!meetup.getCreator().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only the meetup creator can view join requests");
+        }
+        return meetupRequestRepository.findByMeetupIdOrderByIdDesc(meetupId)
+                .stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
     public void deleteRequest(Long requestId, Long userId) {
 
-        MeetupRequest request = meetupRequestRepository.findById(requestId)
+        MeetupRequest request = meetupRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -198,21 +232,42 @@ public class MeetupRequestService {
                         ));
 
         Long requesterId = request.getRequester().getId();
-        Long creatorId = request.getMeetup().getCreator().getId();
-
-        if (!requesterId.equals(userId) && !creatorId.equals(userId)) {
+        if (!requesterId.equals(userId)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "You are not allowed to delete this request"
+                    "Only the requester can cancel their join request"
             );
         }
 
-        meetupRequestRepository.delete(request);
+        if (request.getStatus() != MeetupRequestStatus.PENDING
+                && request.getStatus() != MeetupRequestStatus.ACCEPTED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only pending or accepted requests can be cancelled");
+        }
+
+        if (request.getStatus() == MeetupRequestStatus.ACCEPTED) {
+            Meetup meetup = meetupRepository.findByIdForUpdate(
+                    request.getMeetup().getId()).orElseThrow(() ->
+                    new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Meetup not found"));
+            meetupParticipantRepository.deleteByMeetupIdAndUserId(
+                    meetup.getId(), requesterId);
+            if (meetup.getStatus() == MeetupStatus.FULL
+                    && meetupParticipantRepository.countByMeetupId(meetup.getId())
+                    < meetup.getMaxParticipants()) {
+                meetup.setStatus(MeetupStatus.OPEN);
+                meetupRepository.save(meetup);
+            }
+        }
+
+        request.setStatus(MeetupRequestStatus.CANCELLED);
+        meetupRequestRepository.save(request);
     }
 
-    public MeetupRequest rejectRequest(Long requestId, Long userId) {
+    @Transactional
+    public MeetupRequestResponse rejectRequest(Long requestId, Long userId) {
 
-        MeetupRequest request = meetupRequestRepository.findById(requestId)
+        MeetupRequest request = meetupRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -235,6 +290,13 @@ public class MeetupRequestService {
 
         request.setStatus(MeetupRequestStatus.REJECTED);
 
-        return meetupRequestRepository.save(request);
+        return toResponse(meetupRequestRepository.save(request));
+    }
+
+    private MeetupRequestResponse toResponse(MeetupRequest request) {
+        return new MeetupRequestResponse(request.getId(),
+                request.getMeetup().getId(), request.getMeetup().getTitle(),
+                request.getRequester().getId(), request.getRequester().getName(),
+                request.getStatus());
     }
 }

@@ -49,6 +49,23 @@ All routes below require a valid application JWT.
 | `DELETE` | `/safety/blocks/{userId}` | Unblock a member |
 | `POST` | `/safety/reports` | Submit a report for moderation review |
 
+## Meetup API
+
+Meetup routes also require a valid application JWT. A member can see only their own outgoing join requests. A meetup creator can view requests for their own meetup; these endpoints return a small response DTO rather than exposing JPA entities. Accept and reject actions use the authenticated account as the actor.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/meetups` | Create a formal or informal meetup |
+| `GET` | `/meetups/nearby?latitude=...&longitude=...&radiusKm=5` | Find open nearby meetups |
+| `POST` | `/meetups/{id}/requests` | Request to join a meetup |
+| `GET` | `/meetup-requests` | View your outgoing join requests |
+| `GET` | `/meetups/{id}/requests` | Organizer-only incoming request list |
+| `PATCH` | `/meetup-requests/{id}/accept` | Accept a pending request as organizer |
+| `PATCH` | `/meetup-requests/{id}/reject` | Reject a pending request as organizer |
+| `DELETE` | `/meetup-requests/{id}` | Withdraw your pending RSVP or leave after acceptance |
+
+When an accepted attendee leaves a full meetup, the RSVP is cancelled and the available slot is reopened. Only the requester can withdraw or leave; organizers reject pending requests through the dedicated reject action.
+
 Example request body:
 
 ```json

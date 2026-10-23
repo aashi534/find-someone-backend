@@ -1,6 +1,6 @@
 package com.findsomeone.controller;
 
-import com.findsomeone.entity.MeetupRequest;
+import com.findsomeone.dto.MeetupRequestResponse;
 import com.findsomeone.service.MeetupRequestService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,12 +19,18 @@ public class MeetupRequestController {
     }
 
     @GetMapping("/meetup-requests")
-    public List<MeetupRequest> getAllRequests() {
-        return meetupRequestService.getAllRequests();
+    public List<MeetupRequestResponse> myRequests() {
+        return meetupRequestService.myRequests(currentUserId());
+    }
+
+    @GetMapping("/meetups/{meetupId}/requests")
+    public List<MeetupRequestResponse> requestsForMeetup(
+            @PathVariable Long meetupId) {
+        return meetupRequestService.requestsForMeetup(meetupId, currentUserId());
     }
 
     @PostMapping("/meetups/{meetupId}/requests")
-    public MeetupRequest requestToJoin(
+    public MeetupRequestResponse requestToJoin(
             @PathVariable Long meetupId) {
 
         Authentication authentication =
@@ -36,7 +42,7 @@ public class MeetupRequestController {
     }
 
     @PatchMapping("/meetup-requests/{requestId}/accept")
-    public MeetupRequest acceptRequest(
+    public MeetupRequestResponse acceptRequest(
             @PathVariable Long requestId) {
 
         Authentication authentication =
@@ -60,7 +66,7 @@ public class MeetupRequestController {
     }
 
     @PatchMapping("/meetup-requests/{requestId}/reject")
-    public MeetupRequest rejectRequest(
+    public MeetupRequestResponse rejectRequest(
             @PathVariable Long requestId) {
 
         Authentication authentication =
@@ -71,13 +77,11 @@ public class MeetupRequestController {
         return meetupRequestService.rejectRequest(requestId, userId);
     }
 
-    @PatchMapping("/{requestId}/reject")
-    public MeetupRequest rejectRequest(
-            @PathVariable Long requestId,
-            @RequestParam Long userId) {
-        return meetupRequestService.rejectRequest(requestId, userId);
+    private Long currentUserId() {
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+        return (Long) authentication.getPrincipal();
     }
-
 
 
 }
