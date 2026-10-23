@@ -7,6 +7,7 @@ import java.time.Instant;
 public record SafetyReportResponse(
         Long id,
         Long reportedUserId,
+        Long reportedMessageId,
         SafetyReportReason reason,
         SafetyReportStatus status,
         Instant createdAt) {

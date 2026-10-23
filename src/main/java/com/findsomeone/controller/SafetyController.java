@@ -2,6 +2,7 @@ package com.findsomeone.controller;
 
 import com.findsomeone.dto.SafetyReportRequest;
 import com.findsomeone.dto.SafetyReportResponse;
+import com.findsomeone.dto.MessageSafetyReportRequest;
 import com.findsomeone.dto.UserBlockResponse;
 import com.findsomeone.service.SafetyService;
 import jakarta.validation.Valid;
@@ -45,6 +46,14 @@ public class SafetyController {
             @Valid @RequestBody SafetyReportRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(safetyService.report(currentUserId(), request));
+    }
+
+    @PostMapping("/messages/{messageId}/reports")
+    public ResponseEntity<SafetyReportResponse> reportMessage(
+            @PathVariable Long messageId,
+            @Valid @RequestBody MessageSafetyReportRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(safetyService.reportMessage(currentUserId(), messageId, request));
     }
 
     private Long currentUserId() {

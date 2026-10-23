@@ -49,6 +49,7 @@ All routes below require a valid application JWT.
 | `GET` | `/safety/blocks` | List members you blocked |
 | `DELETE` | `/safety/blocks/{userId}` | Unblock a member |
 | `POST` | `/safety/reports` | Submit a report for moderation review |
+| `POST` | `/safety/messages/{messageId}/reports` | Report a message in one of your connections |
 | `GET` | `/notifications?page=0&size=20` | Read your notifications |
 | `GET` | `/notifications/unread-count` | Get your unread notification count |
 | `PATCH` | `/notifications/{id}/read` | Mark one of your notifications as read |
@@ -94,7 +95,7 @@ The purpose must already be accepted on that connection. Messages created before
 
 Notifications are stored in-app and can be fetched by polling the authenticated API. Email, SMS, and push delivery are not connected.
 
-To report a member, send `reportedUserId`, a `reason` (`HARASSMENT`, `FAKE_IDENTITY`, `SCAM_OR_SPAM`, `INAPPROPRIATE_CONTENT`, or `OTHER`), and optional `details` (up to 2,000 characters). A block hides both profiles from discovery and connections, prevents new connection requests and messages, and can be reversed by unblocking. Reports are stored as `OPEN`; an admin review workflow is not included yet.
+To report a member, send `reportedUserId`, a `reason` (`HARASSMENT`, `FAKE_IDENTITY`, `SCAM_OR_SPAM`, `INAPPROPRIATE_CONTENT`, or `OTHER`), and optional `details` (up to 2,000 characters). To report a specific chat message, send the same `reason` and optional `details` to `/safety/messages/{messageId}/reports`; only a member of that message's connection can report it, and the message sender is identified as the reported user. The report stores a reference to the message rather than copying its text. A block hides both profiles from discovery and connections, prevents new connection requests and messages, and can be reversed by unblocking. Reports are stored as `OPEN`; an admin review workflow is not included yet.
 
 ## Trust and safety status
 

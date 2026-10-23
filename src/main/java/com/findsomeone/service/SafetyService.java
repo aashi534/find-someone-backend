@@ -2,9 +2,11 @@ package com.findsomeone.service;
 
 import com.findsomeone.dto.SafetyReportRequest;
 import com.findsomeone.dto.SafetyReportResponse;
+import com.findsomeone.dto.MessageSafetyReportRequest;
 import com.findsomeone.dto.UserBlockResponse;
 import com.findsomeone.entity.*;
 import com.findsomeone.repository.ConnectionRequestRepository;
+import com.findsomeone.repository.ConnectionMessageRepository;
 import com.findsomeone.repository.SafetyReportRepository;
 import com.findsomeone.repository.UserBlockRepository;
 import com.findsomeone.repository.UserRepository;
@@ -22,15 +24,18 @@ public class SafetyService {
     private final UserBlockRepository blockRepository;
     private final SafetyReportRepository reportRepository;
     private final ConnectionRequestRepository requestRepository;
+    private final ConnectionMessageRepository messageRepository;
 
     public SafetyService(UserRepository userRepository,
                          UserBlockRepository blockRepository,
                          SafetyReportRepository reportRepository,
-                         ConnectionRequestRepository requestRepository) {
+                         ConnectionRequestRepository requestRepository,
+                         ConnectionMessageRepository messageRepository) {
         this.userRepository = userRepository;
         this.blockRepository = blockRepository;
         this.reportRepository = reportRepository;
         this.requestRepository = requestRepository;
+        this.messageRepository = messageRepository;
     }
 
     @Transactional
@@ -86,6 +91,33 @@ public class SafetyService {
         return toReportResponse(reportRepository.save(report));
     }
 
+    @Transactional
+    public SafetyReportResponse reportMessage(Long reporterId, Long messageId,
+                                               MessageSafetyReportRequest input) {
+        ConnectionMessage message = messageRepository.findById(messageId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+        Connection connection = message.getConnection();
+        Long userOneId = connection.getUserOne().getId();
+        Long userTwoId = connection.getUserTwo().getId();
+        if (!reporterId.equals(userOneId) && !reporterId.equals(userTwoId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found");
+        }
+        User reported = message.getSender();
+        if (reporterId.equals(reported.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "You cannot report your own message");
+        }
+
+        SafetyReport report = new SafetyReport();
+        report.setReporter(findUser(reporterId));
+        report.setReportedUser(reported);
+        report.setMessage(message);
+        report.setReason(input.reason());
+        report.setDetails(input.details() == null || input.details().isBlank()
+                ? null : input.details().trim());
+        return toReportResponse(reportRepository.save(report));
+    }
+
     private User findUser(Long id) {
         return userRepository.findById(id).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -98,7 +130,9 @@ public class SafetyService {
 
     private SafetyReportResponse toReportResponse(SafetyReport report) {
         return new SafetyReportResponse(report.getId(),
-                report.getReportedUser().getId(), report.getReason(),
+                report.getReportedUser().getId(),
+                report.getMessage() == null ? null : report.getMessage().getId(),
+                report.getReason(),
                 report.getStatus(), report.getCreatedAt());
     }
 }

@@ -6,7 +6,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "safety_reports", indexes = {
         @Index(name = "idx_safety_reports_status_created", columnList = "status,created_at"),
-        @Index(name = "idx_safety_reports_reported_user", columnList = "reported_user_id")
+        @Index(name = "idx_safety_reports_reported_user", columnList = "reported_user_id"),
+        @Index(name = "idx_safety_reports_message", columnList = "message_id")
 })
 public class SafetyReport {
 
@@ -21,6 +22,10 @@ public class SafetyReport {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "reported_user_id", nullable = false)
     private User reportedUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "message_id")
+    private ConnectionMessage message;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
@@ -46,6 +51,8 @@ public class SafetyReport {
     public void setReporter(User reporter) { this.reporter = reporter; }
     public User getReportedUser() { return reportedUser; }
     public void setReportedUser(User reportedUser) { this.reportedUser = reportedUser; }
+    public ConnectionMessage getMessage() { return message; }
+    public void setMessage(ConnectionMessage message) { this.message = message; }
     public SafetyReportReason getReason() { return reason; }
     public void setReason(SafetyReportReason reason) { this.reason = reason; }
     public String getDetails() { return details; }
