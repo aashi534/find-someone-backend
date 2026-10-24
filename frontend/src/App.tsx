@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { api, beginLinkedInLogin, clearToken, storeLoginTokenFromCallback } from './api'
 import type { Connection, ConnectionRequest, Meetup, MeetupRequest, Message, Notification, Profile, Purpose } from './api'
 
@@ -93,10 +93,10 @@ function App() {
         <a className="brand" href="#home" onClick={event => event.preventDefault()}><span className="brand-mark">f.</span><span>find someone</span></a>
         <div className="sidebar-caption">YOUR SPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
-          <NavButton active={tab === 'discover'} icon="⌕" label="Discover" onClick={() => { setTab('discover'); setActiveChat(null) }} />
-          <NavButton active={tab === 'requests'} icon="↗" label="Requests" count={requests.length} onClick={() => { setTab('requests'); setActiveChat(null) }} />
-          <NavButton active={tab === 'connections'} icon="◉" label="Connections" onClick={() => { setTab('connections'); setActiveChat(null) }} />
-          <NavButton active={tab === 'meetups'} icon="▦" label="Meetups" onClick={() => { setTab('meetups'); setActiveChat(null) }} />
+          <NavButton active={tab === 'discover'} icon="search" label="Discover" onClick={() => { setTab('discover'); setActiveChat(null) }} />
+          <NavButton active={tab === 'requests'} icon="request" label="Requests" count={requests.length} onClick={() => { setTab('requests'); setActiveChat(null) }} />
+          <NavButton active={tab === 'connections'} icon="people" label="Connections" onClick={() => { setTab('connections'); setActiveChat(null) }} />
+          <NavButton active={tab === 'meetups'} icon="calendar" label="Meetups" onClick={() => { setTab('meetups'); setActiveChat(null) }} />
         </nav>
         <div className="sidebar-note"><span className="note-spark">✳</span><p>Good connections start with a shared reason to meet.</p></div>
         <button className="user-mini" onClick={signOut} title="Sign out"><Avatar name={profile?.name ?? 'You'} /><span className="mini-text"><b>{profile?.name || 'Your profile'}</b><small>Signed in with LinkedIn</small></span><span className="signout">↗</span></button>
@@ -108,7 +108,7 @@ function App() {
           <div className="topbar-greeting"><span className="online-dot" /> A more human way to connect</div>
           <button className="edit-profile-link" onClick={() => setProfileOpen(true)}>Edit profile <span>↗</span></button>
           <button className={`icon-button ${noticeOpen ? 'selected' : ''}`} aria-label="Notifications" onClick={() => setNoticeOpen(!noticeOpen)}>
-            ♧{unread > 0 && <span className="notification-badge">{unread}</span>}
+            <Icon name="bell" />{unread > 0 && <span className="notification-badge">{unread}</span>}
           </button>
         </header>
 
@@ -128,10 +128,10 @@ function App() {
       {profileOpen && profile && <ProfileModal profile={profile} onClose={() => setProfileOpen(false)} onSave={async updated => { try { await api.updateProfile(updated); setProfileOpen(false); await loadMain() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save your profile.') } }} />}
       {createOpen && <CreateMeetupModal onClose={() => setCreateOpen(false)} onCreate={async event => { try { await api.createMeetup(event); setCreateOpen(false); await loadMain() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not publish the meetup.') } }} />}
       <nav className="mobile-nav" aria-label="Mobile navigation">
-        <NavButton active={tab === 'discover'} icon="⌕" label="Explore" onClick={() => { setTab('discover'); setActiveChat(null) }} />
-        <NavButton active={tab === 'requests'} icon="↗" label="Requests" count={requests.length} onClick={() => { setTab('requests'); setActiveChat(null) }} />
-        <NavButton active={tab === 'connections'} icon="◉" label="Chats" onClick={() => { setTab('connections'); setActiveChat(null) }} />
-        <NavButton active={tab === 'meetups'} icon="▦" label="Meetups" onClick={() => { setTab('meetups'); setActiveChat(null) }} />
+        <NavButton active={tab === 'discover'} icon="search" label="Explore" onClick={() => { setTab('discover'); setActiveChat(null) }} />
+        <NavButton active={tab === 'requests'} icon="request" label="Requests" count={requests.length} onClick={() => { setTab('requests'); setActiveChat(null) }} />
+        <NavButton active={tab === 'connections'} icon="people" label="Chats" onClick={() => { setTab('connections'); setActiveChat(null) }} />
+        <NavButton active={tab === 'meetups'} icon="calendar" label="Meetups" onClick={() => { setTab('meetups'); setActiveChat(null) }} />
       </nav>
     </div>
   )
@@ -141,8 +141,19 @@ function Login({ onSignIn, error }: { onSignIn: () => void; error: string }) {
   return <main className="login-page"><div className="login-card"><a className="brand login-brand"><span className="brand-mark">f.</span><span>find someone</span></a><div className="login-art"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><span className="art-star">✳</span><span className="art-person person-one">A</span><span className="art-person person-two">M</span><span className="art-person person-three">R</span><span className="art-heart">↗</span></div><p className="eyebrow">MEET WITH MEANING</p><h1>Your people are<br/>closer than you think.</h1><p className="login-copy">Find a career sounding board, a badminton partner, or someone new to explore the city with. Start with a real profile and a reason to connect.</p><button className="linkedin-button" onClick={onSignIn}><span className="linkedin-icon">in</span> Continue with LinkedIn <span>→</span></button>{error && <p className="login-error">{error}</p>}<p className="login-footnote">One profile. Many ways to connect.<br/>Your conversations stay yours.</p></div><div className="login-side-copy"><span className="side-quote">“</span><p>Not another feed.<br/>A place to find<br/><i>your kind of people.</i></p><div className="quote-line"/><small>PROFESSIONAL · PERSONAL · LOCAL</small></div></main>
 }
 
-function NavButton({ active, icon, label, count, onClick }: { active: boolean; icon: string; label: string; count?: number; onClick: () => void }) {
-  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}><span className="nav-icon">{icon}</span><span>{label}</span>{count ? <small>{count}</small> : null}</button>
+function NavButton({ active, icon, label, count, onClick }: { active: boolean; icon: 'search' | 'request' | 'people' | 'calendar'; label: string; count?: number; onClick: () => void }) {
+  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}><span className="nav-icon"><Icon name={icon}/></span><span>{label}</span>{count ? <small>{count}</small> : null}</button>
+}
+
+function Icon({ name }: { name: 'search' | 'request' | 'people' | 'calendar' | 'bell' }) {
+  const paths: Record<typeof name, ReactNode> = {
+    search: <><circle cx="10.8" cy="10.8" r="6.2"/><path d="m15.4 15.4 4.1 4.1"/></>,
+    request: <><path d="M5 12h13"/><path d="m13 6 6 6-6 6"/><path d="M5 5v14"/></>,
+    people: <><path d="M16 20v-1.7a3.3 3.3 0 0 0-3.3-3.3H7.3A3.3 3.3 0 0 0 4 18.3V20"/><circle cx="10" cy="7.5" r="3.5"/><path d="M16.2 4.3a3.5 3.5 0 0 1 0 6.8M17 15h.7a3.3 3.3 0 0 1 3.3 3.3V20"/></>,
+    calendar: <><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M7.5 3v4M16.5 3v4M3.5 10h17"/><path d="m8 14 2 2 4-4"/></>,
+    bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
+  }
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>
 }
 
 function DiscoverView({ profiles, purposeOptions, purposeFilter, query, busy, ownId, requestPurpose, onPurposeFilter, onQuery, onRequestPurpose, onConnect, onBlock }: {
@@ -155,7 +166,7 @@ function DiscoverView({ profiles, purposeOptions, purposeFilter, query, busy, ow
   return <>
     <section className="hero-panel"><div className="hero-content"><p className="eyebrow">A GOOD DAY TO MEET SOMEONE</p><h1>Find a connection<br/><em>that feels like you.</em></h1><p>People with shared intentions, interests, and room in their day.</p><button className="dark-button" onClick={() => document.getElementById('people-grid')?.scrollIntoView({ behavior: 'smooth' })}>Explore people <span>↓</span></button></div><div className="hero-illustration"><div className="hero-sun"/><div className="hero-loop loop-a"/><div className="hero-loop loop-b"/><div className="hero-disc disc-a">N</div><div className="hero-disc disc-b">J</div><div className="hero-disc disc-c">S</div><span className="hero-spark">✳</span><span className="hero-tag">same city,<br/>new stories</span></div><span className="hero-side-label">MEET SOMEONE NEW — TODAY</span></section>
     <div className="section-heading" id="people-grid"><div><p className="eyebrow">YOUR NEXT HELLO</p><h2>People to meet <span className="heading-count">{profiles.length.toString().padStart(2, '0')}</span></h2></div><button className="filter-button" onClick={() => { onPurposeFilter(''); setSearchText(''); onQuery('') }}>Clear filters <span>↗</span></button></div>
-    <div className="filter-row"><label className="search-box"><span>⌕</span><input aria-label="Search profiles" placeholder="Search names or interests" value={searchText} onChange={event => setSearchText(event.target.value)}/><kbd>⌘ K</kbd></label><div className="purpose-chips"><button className={`filter-chip ${!purposeFilter ? 'selected' : ''}`} onClick={() => onPurposeFilter('')}>All people</button>{purposeOptions.slice(0, 5).map(p => <button key={p} className={`filter-chip ${purposeFilter === p ? 'selected' : ''}`} onClick={() => onPurposeFilter(purposeFilter === p ? '' : p)}>{labels[p]}</button>)}</div></div>
+    <div className="filter-row"><label className="search-box"><span><Icon name="search"/></span><input aria-label="Search profiles" placeholder="Search names or interests" value={searchText} onChange={event => setSearchText(event.target.value)}/><kbd>⌘ K</kbd></label><div className="purpose-chips"><button className={`filter-chip ${!purposeFilter ? 'selected' : ''}`} onClick={() => onPurposeFilter('')}>All people</button>{purposeOptions.slice(0, 5).map(p => <button key={p} className={`filter-chip ${purposeFilter === p ? 'selected' : ''}`} onClick={() => onPurposeFilter(purposeFilter === p ? '' : p)}>{labels[p]}</button>)}</div></div>
     {busy && profiles.length === 0 ? <div className="loading-box">Finding people for you…</div> : profiles.length === 0 ? <div className="empty-state"><span>✳</span><h3>No one here just yet</h3><p>Try a different purpose or search term.</p></div> : <div className="people-grid">{profiles.filter(person => person.id !== ownId).map((person, index) => {
       const choices = person.connectionPurposes || []
       const selected = requestPurpose[person.id] ?? choices[0]
