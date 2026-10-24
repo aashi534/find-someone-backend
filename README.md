@@ -2,6 +2,8 @@
 
 A Spring Boot REST API for trusted social and professional connections and local meetups.
 
+The `frontend/` directory contains the initial React web app for LinkedIn sign-in, discovering profiles, connection requests and chat, meetups, and notifications.
+
 ## Current capabilities
 
 - LinkedIn OpenID Connect sign-in, followed by a short-lived application JWT.
@@ -20,11 +22,53 @@ A Spring Boot REST API for trusted social and professional connections and local
 
 ## Local setup
 
-1. Create a PostgreSQL database named `find_someone` (or set `DATABASE_URL`).
-2. Create a LinkedIn application, enable **Sign In with LinkedIn using OpenID Connect**, and register the callback URL `http://localhost:8080/login/oauth2/code/linkedin`.
-3. Set the environment variables shown in `.env.example`. Generate a unique `APP_JWT_SECRET` with at least 32 bytes. Do not commit real secrets.
-4. Run the application with Java 21 and Maven: `mvn spring-boot:run`.
-5. Start sign-in at `/oauth2/authorization/linkedin`. On successful sign-in, the callback returns JSON containing an application JWT. Send it on API calls as `Authorization: Bearer <accessToken>`.
+### Requirements
+
+- Java 21
+- Node.js 20.19+ or 22.12+
+- Docker with Compose, or a local PostgreSQL 17 database
+- LinkedIn developer app credentials for end-to-end sign-in
+
+### Start PostgreSQL
+
+From the repository root run `docker compose up -d postgres`. This starts a local database at `localhost:5432` using the values in `.env.example`. To stop it while keeping its database, run `docker compose stop postgres`.
+
+### Configure and run the backend
+
+1. Copy `.env.example` to `.env` and set `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and a unique `APP_JWT_SECRET` with at least 32 bytes. Keep `.env` private; it is ignored by Git.
+2. In your LinkedIn app, enable **Sign In with LinkedIn using OpenID Connect** and register `http://localhost:8080/login/oauth2/code/linkedin` as the redirect URL.
+3. In a terminal at the repository root, load the local environment and start Spring Boot:
+
+   ```bash
+   set -a
+   source .env
+   set +a
+   ./mvnw spring-boot:run
+   ```
+
+   The API runs at `http://localhost:8080`. The first successful LinkedIn sign-in creates a profile. The backend returns the short-lived JWT to the frontend callback at `http://localhost:5173/auth/callback`.
+
+### Run the frontend
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies API calls to the backend on port 8080. The LinkedIn sign-in flow opens the backend directly, then returns to the frontend. For another backend URL, copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_BACKEND_ORIGIN` and `VITE_API_BASE_URL` there.
+
+### Try the main flows
+
+1. Sign in with LinkedIn and complete the profile with a name, short bio, and connection purposes.
+2. To test one-to-one requests, sign in as a second LinkedIn account in another browser profile, send a request from one account, and accept it from the other.
+3. Open the connection and send messages. Each message is associated with a purpose accepted on that connection; the chat also has a message-report action.
+4. Create a meetup from **Meetups**, then use a second account to request to join. The organizer can accept or reject requests through the API; meetup RSVP management is currently available in the backend.
+5. Use the notification bell to review connection and meetup updates. Use the member menu on a profile to block that member.
+
+For a quick backend health check, open `http://localhost:8080/health`. The other API routes require the JWT created by LinkedIn sign-in.
 
 ## Connection API
 
