@@ -65,7 +65,7 @@ Open `http://localhost:5173`. Vite proxies API calls to the backend on port 8080
 1. Sign in with LinkedIn and complete the profile with a name, short bio, and connection purposes.
 2. To test one-to-one requests, sign in as a second LinkedIn account in another browser profile, send a request from one account, and accept it from the other.
 3. Open the connection and send messages. Each message is associated with a purpose accepted on that connection; the chat also has a message-report action.
-4. Create a meetup from **Meetups**, then use a second account to request to join. The organizer can accept or reject requests through the API; meetup RSVP management is currently available in the backend.
+4. Create a meetup from **Meetups**, then use a second account to request to join. The attendee can track or withdraw the RSVP under **My RSVPs**. The organizer can accept or decline join requests from the meetup card.
 5. Use the notification bell to review connection and meetup updates. Use the member menu on a profile to block that member.
 
 For a quick backend health check, open `http://localhost:8080/health`. The other API routes require the JWT created by LinkedIn sign-in.

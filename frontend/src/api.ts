@@ -28,6 +28,15 @@ export type ConnectionRequest = {
   createdAt: string
 }
 
+export type MeetupRequest = {
+  id: number
+  meetupId: number
+  meetupTitle: string
+  requesterId: number
+  requesterName: string
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED'
+}
+
 export type Connection = {
   id: number
   otherUserId: number
@@ -128,8 +137,11 @@ export const api = {
   sendConnectionRequest: (recipientId: number, purpose: Purpose, note: string) =>
     request<ConnectionRequest>('/connections/requests', json({ recipientId, purpose, note })),
   incomingRequests: () => request<ConnectionRequest[]>('/connections/requests/incoming'),
+  outgoingRequests: () => request<ConnectionRequest[]>('/connections/requests/outgoing'),
   respondToRequest: (requestId: number, action: 'accept' | 'decline') =>
     request<ConnectionRequest>(`/connections/requests/${requestId}/${action}`, { method: 'PATCH' }),
+  cancelConnectionRequest: (requestId: number) =>
+    request<void>(`/connections/requests/${requestId}`, { method: 'DELETE' }),
   connections: () => request<Connection[]>('/connections'),
   messages: (connectionId: number, purpose: Purpose) =>
     request<Message[]>(`/connections/${connectionId}/messages?purpose=${purpose}&page=0&size=50`),
@@ -141,6 +153,12 @@ export const api = {
   meetups: () => request<Meetup[]>('/meetups'),
   createMeetup: (meetup: Omit<Meetup, 'id' | 'creator'>) => request<Meetup>('/meetups', json(meetup)),
   requestMeetup: (meetupId: number) => request(`/meetups/${meetupId}/requests`, json({})),
+  myMeetupRequests: () => request<MeetupRequest[]>('/meetup-requests'),
+  meetupRequests: (meetupId: number) => request<MeetupRequest[]>(`/meetups/${meetupId}/requests`),
+  respondToMeetupRequest: (requestId: number, action: 'accept' | 'reject') =>
+    request<MeetupRequest>(`/meetup-requests/${requestId}/${action}`, { method: 'PATCH' }),
+  cancelMeetupRequest: (requestId: number) =>
+    request<void>(`/meetup-requests/${requestId}`, { method: 'DELETE' }),
   notifications: () => request<Notification[]>('/notifications?page=0&size=20'),
   unreadCount: () => request<number>('/notifications/unread-count'),
   markRead: (notificationId: number) => request(`/notifications/${notificationId}/read`, { method: 'PATCH' }),

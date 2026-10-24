@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { api, beginLinkedInLogin, clearToken, storeLoginTokenFromCallback } from './api'
-import type { Connection, ConnectionRequest, Meetup, Message, Notification, Profile, Purpose } from './api'
+import type { Connection, ConnectionRequest, Meetup, MeetupRequest, Message, Notification, Profile, Purpose } from './api'
 
 type Tab = 'discover' | 'requests' | 'connections' | 'meetups'
 
@@ -16,8 +16,10 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [requests, setRequests] = useState<ConnectionRequest[]>([])
+  const [sentRequests, setSentRequests] = useState<ConnectionRequest[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [meetups, setMeetups] = useState<Meetup[]>([])
+  const [myMeetupRequests, setMyMeetupRequests] = useState<MeetupRequest[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
   const [tab, setTab] = useState<Tab>('discover')
@@ -37,12 +39,13 @@ function App() {
     setBusy(true)
     setError('')
     try {
-      const [me, discoverable, incoming, connected, events, inbox, count] = await Promise.all([
-        api.me(), api.profiles(purposeFilter, query), api.incomingRequests(), api.connections(),
-        api.meetups(), api.notifications(), api.unreadCount(),
+      const [me, discoverable, incoming, outgoing, connected, events, myRsvps, inbox, count] = await Promise.all([
+        api.me(), api.profiles(purposeFilter, query), api.incomingRequests(), api.outgoingRequests(), api.connections(),
+        api.meetups(), api.myMeetupRequests(), api.notifications(), api.unreadCount(),
       ])
-      setProfile(me); setProfiles(discoverable); setRequests(incoming); setConnections(connected)
+      setProfile(me); setProfiles(discoverable); setRequests(incoming); setSentRequests(outgoing); setConnections(connected)
       setMeetups(events.filter(event => event.status !== 'CANCELLED'))
+      setMyMeetupRequests(myRsvps)
       setNotifications(inbox); setUnread(count)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load your account.')
@@ -113,11 +116,11 @@ function App() {
 
         <div className="content-wrap">
           {tab === 'discover' && <DiscoverView profiles={profiles} purposeOptions={purposeOptions} purposeFilter={purposeFilter} query={query} busy={busy} ownId={profile?.id ?? -1} requestPurpose={requestPurpose} onPurposeFilter={setPurposeFilter} onQuery={setQuery} onRequestPurpose={(id, purpose) => setRequestPurpose(old => ({ ...old, [id]: purpose }))} onConnect={(person, purpose) => void act(() => api.sendConnectionRequest(person.id, purpose, ''), 'Done: connection request sent.')} onBlock={id => void act(() => api.block(id), 'Done: member blocked.')} />}
-          {tab === 'requests' && <RequestsView requests={requests} busy={busy} onRespond={(id, action) => void act(() => api.respondToRequest(id, action), `Done: request ${action}ed.`)} />}
+          {tab === 'requests' && <RequestsView requests={requests} sentRequests={sentRequests} busy={busy} onRespond={(id, action) => void act(() => api.respondToRequest(id, action), `Done: request ${action}ed.`)} onCancel={id => void act(() => api.cancelConnectionRequest(id), 'Done: request cancelled.')} />}
           {tab === 'connections' && (activeChat
             ? <ChatView connection={activeChat} purpose={chatPurpose} purposes={purposeOptions.filter(p => activeChat.purposes.includes(p))} messages={messages} ownId={profile?.id ?? -1} onBack={() => setActiveChat(null)} onPurpose={changeChatPurpose} onSend={async body => { if (!chatPurpose) return; await api.sendMessage(activeChat.id, chatPurpose, body); setMessages(await api.messages(activeChat.id, chatPurpose)) }} onReport={message => { const reason = window.prompt('Why are you reporting this message? (HARASSMENT, SCAM_OR_SPAM, INAPPROPRIATE_CONTENT, OTHER)', 'INAPPROPRIATE_CONTENT'); if (reason) void act(() => api.reportMessage(message.id, reason.trim().toUpperCase()), 'Done: message report submitted.') }} />
             : <ConnectionsView connections={connections} busy={busy} onChat={openChat} />)}
-          {tab === 'meetups' && <MeetupsView meetups={meetups} busy={busy} onCreate={() => setCreateOpen(true)} onJoin={id => void act(() => api.requestMeetup(id), 'Done: meetup request sent.')} />}
+          {tab === 'meetups' && <MeetupsView meetups={meetups} myRequests={myMeetupRequests} ownId={profile?.id ?? -1} busy={busy} onCreate={() => setCreateOpen(true)} onJoin={id => act(() => api.requestMeetup(id), 'Done: meetup request sent.')} onCancelRsvp={id => act(() => api.cancelMeetupRequest(id), 'Done: RSVP updated.')} onManageRsvp={(id, action) => act(() => api.respondToMeetupRequest(id, action), `Done: RSVP ${action}ed.`)} />}
         </div>
       </main>
 
@@ -162,8 +165,10 @@ function DiscoverView({ profiles, purposeOptions, purposeFilter, query, busy, ow
   </>
 }
 
-function RequestsView({ requests, busy, onRespond }: { requests: ConnectionRequest[]; busy: boolean; onRespond: (id: number, action: 'accept' | 'decline') => void }) {
-  return <><PageTitle eyebrow="OPEN DOORS" title="Connection requests" copy="Every good conversation starts with a small invitation." />{busy && requests.length === 0 ? <div className="loading-box">Loading requests…</div> : requests.length === 0 ? <Empty title="You're all caught up" copy="New connection requests will show up here."/> : <div className="request-list">{requests.map(request => <article className="request-card" key={request.id}><Avatar name={request.requesterName}/><div className="request-copy"><h3>{request.requesterName}</h3><p>Wants to connect for <b>{labels[request.purpose]}</b></p>{request.note && <blockquote>“{request.note}”</blockquote>}<small>{new Date(request.createdAt).toLocaleDateString()}</small></div><div className="request-actions"><button className="dark-button small" onClick={() => onRespond(request.id, 'accept')}>Accept <span>✓</span></button><button className="text-button" onClick={() => onRespond(request.id, 'decline')}>Decline</button></div></article>)}</div>}</>
+function RequestsView({ requests, sentRequests, busy, onRespond, onCancel }: { requests: ConnectionRequest[]; sentRequests: ConnectionRequest[]; busy: boolean; onRespond: (id: number, action: 'accept' | 'decline') => void; onCancel: (id: number) => void }) {
+  const [view, setView] = useState<'incoming' | 'sent'>('incoming')
+  const shown = view === 'incoming' ? requests : sentRequests
+  return <><PageTitle eyebrow="OPEN DOORS" title="Connection requests" copy="Every good conversation starts with a small invitation." /><div className="meetup-filters"><button className={`filter-chip ${view === 'incoming' ? 'selected' : ''}`} onClick={() => setView('incoming')}>Received · {requests.length}</button><button className={`filter-chip ${view === 'sent' ? 'selected' : ''}`} onClick={() => setView('sent')}>Sent · {sentRequests.length}</button></div>{busy && shown.length === 0 ? <div className="loading-box">Loading requests…</div> : shown.length === 0 ? <Empty title={view === 'incoming' ? "You're all caught up" : 'No sent requests'} copy={view === 'incoming' ? 'New connection requests will show up here.' : 'Requests you send will appear here until they are answered.'}/> : <div className="request-list">{shown.map(request => <article className="request-card" key={request.id}><Avatar name={view === 'incoming' ? request.requesterName : request.recipientName}/><div className="request-copy"><h3>{view === 'incoming' ? request.requesterName : request.recipientName}</h3><p>{view === 'incoming' ? 'Wants to connect with you' : 'You asked to connect'} for <b>{labels[request.purpose]}</b></p>{request.note && <blockquote>“{request.note}”</blockquote>}<small>{view === 'incoming' ? `Received ${new Date(request.createdAt).toLocaleDateString()}` : `Sent ${new Date(request.createdAt).toLocaleDateString()} · ${request.status.toLowerCase()}`}</small></div>{view === 'incoming' ? <div className="request-actions"><button className="dark-button small" onClick={() => onRespond(request.id, 'accept')}>Accept <span>✓</span></button><button className="text-button" onClick={() => onRespond(request.id, 'decline')}>Decline</button></div> : request.status === 'PENDING' && <div className="request-actions"><button className="text-button" onClick={() => onCancel(request.id)}>Cancel request</button></div>}</article>)}</div>}</>
 }
 
 function ConnectionsView({ connections, busy, onChat }: { connections: Connection[]; busy: boolean; onChat: (connection: Connection) => void }) {
@@ -177,10 +182,22 @@ function ChatView({ connection, purpose, purposes, messages, ownId, onBack, onPu
   return <section className="chat-shell"><div className="chat-header"><button className="back-button" onClick={onBack}>←</button><Avatar name={connection.otherUserName}/><div><b>{connection.otherUserName}</b><small>Connected · your conversations stay private</small></div><label className="chat-purpose">Talking about<select value={purpose} onChange={event => onPurpose(event.target.value as Purpose)}>{purposes.map(p => <option key={p} value={p}>{labels[p]}</option>)}</select></label></div><div className="chat-body">{messages.length === 0 ? <div className="chat-empty"><span>✳</span><h3>Start with a hello</h3><p>Keep it kind, curious, and true to why you connected.</p></div> : messages.slice().reverse().map(message => <div key={message.id} className={`message-row ${message.senderId === ownId ? 'mine' : ''}`}><div className="message-bubble"><small>{message.senderId === ownId ? 'You' : message.senderName} · {new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small><p>{message.body}</p>{message.senderId !== ownId && <button onClick={() => onReport(message)}>Report message</button>}</div></div>)}</div><form className="chat-compose" onSubmit={submit}><input value={body} maxLength={5000} onChange={event => setBody(event.target.value)} placeholder="Write something thoughtful…"/><button type="submit" disabled={sending || !purpose || !body.trim()}>{sending ? 'Sending…' : 'Send'} <span>↑</span></button></form></section>
 }
 
-function MeetupsView({ meetups, busy, onCreate, onJoin }: { meetups: Meetup[]; busy: boolean; onCreate: () => void; onJoin: (id: number) => void }) {
+function MeetupsView({ meetups, myRequests, ownId, busy, onCreate, onJoin, onCancelRsvp, onManageRsvp }: { meetups: Meetup[]; myRequests: MeetupRequest[]; ownId: number; busy: boolean; onCreate: () => void; onJoin: (id: number) => Promise<void>; onCancelRsvp: (id: number) => Promise<void>; onManageRsvp: (id: number, action: 'accept' | 'reject') => Promise<void> }) {
   const [style, setStyle] = useState<'ALL' | 'FORMAL' | 'INFORMAL'>('ALL')
+  const [view, setView] = useState<'events' | 'mine'>('events')
+  const [managedMeetup, setManagedMeetup] = useState<number | null>(null)
+  const [organizerRequests, setOrganizerRequests] = useState<MeetupRequest[]>([])
+  const [requestBusy, setRequestBusy] = useState(false)
   const filtered = meetups.filter(meetup => style === 'ALL' || meetup.style === style)
-  return <><div className="meetup-title-row"><PageTitle eyebrow="OUT IN THE WORLD" title="Meetups" copy="From a casual game to a workshop worth showing up for."/><button className="dark-button create-button" onClick={onCreate}>Host a meetup <span>＋</span></button></div><div className="meetup-filters">{(['ALL', 'INFORMAL', 'FORMAL'] as const).map(value => <button key={value} className={`filter-chip ${style === value ? 'selected' : ''}`} onClick={() => setStyle(value)}>{value === 'ALL' ? 'All meetups' : value === 'FORMAL' ? 'Workshops & events' : 'Casual plans'}</button>)}</div>{busy && meetups.length === 0 ? <div className="loading-box">Finding meetups…</div> : filtered.length === 0 ? <Empty title="No meetups yet" copy="Be the first to put a plan on the calendar."/> : <div className="meetup-grid">{filtered.map((event, i) => <article className="meetup-card" key={event.id}><div className={`meetup-art meetup-art-${i % 3}`}><span className="meetup-kind">{event.style === 'FORMAL' ? '✦ FORMAL' : '☼ INFORMAL'}</span><span className="meetup-category">{labels[event.category] ?? event.category}</span><span className="meetup-day">{new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, { day: '2-digit' })}</span><span className="meetup-month">{new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</span></div><div className="meetup-details"><h3>{event.title}</h3><p>{event.description || 'Come meet people and share a good experience.'}</p><div className="meetup-meta"><span>◷ {event.startTime?.slice(0, 5)}</span><span>⌖ {event.locationName}</span></div><button className="outline-button" onClick={() => onJoin(event.id)}>Ask to join <span>↗</span></button></div></article>)}</div>}</>
+  async function openOrganizerRequests(meetupId: number) {
+    setManagedMeetup(meetupId); setRequestBusy(true)
+    try { setOrganizerRequests(await api.meetupRequests(meetupId)) }
+    catch { setOrganizerRequests([]) }
+    finally { setRequestBusy(false) }
+  }
+  const myRsvpIds = new Set(myRequests.filter(request => request.status === 'PENDING' || request.status === 'ACCEPTED').map(request => request.meetupId))
+  const activeRsvps = myRequests.filter(request => request.status === 'PENDING' || request.status === 'ACCEPTED')
+  return <><div className="meetup-title-row"><PageTitle eyebrow="OUT IN THE WORLD" title="Meetups" copy="From a casual game to a workshop worth showing up for."/><button className="dark-button create-button" onClick={onCreate}>Host a meetup <span>＋</span></button></div><div className="meetup-filters"><button className={`filter-chip ${view === 'events' ? 'selected' : ''}`} onClick={() => setView('events')}>Explore meetups</button><button className={`filter-chip ${view === 'mine' ? 'selected' : ''}`} onClick={() => setView('mine')}>My RSVPs · {activeRsvps.length}</button></div>{view === 'events' ? <><div className="meetup-filters">{(['ALL', 'INFORMAL', 'FORMAL'] as const).map(value => <button key={value} className={`filter-chip ${style === value ? 'selected' : ''}`} onClick={() => setStyle(value)}>{value === 'ALL' ? 'All meetups' : value === 'FORMAL' ? 'Workshops & events' : 'Casual plans'}</button>)}</div>{busy && meetups.length === 0 ? <div className="loading-box">Finding meetups…</div> : filtered.length === 0 ? <Empty title="No meetups yet" copy="Be the first to put a plan on the calendar."/> : <div className="meetup-grid">{filtered.map((event, i) => <article className="meetup-card" key={event.id}><div className={`meetup-art meetup-art-${i % 3}`}><span className="meetup-kind">{event.style === 'FORMAL' ? '✦ FORMAL' : '☼ INFORMAL'}</span><span className="meetup-category">{labels[event.category] ?? event.category}</span><span className="meetup-day">{new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, { day: '2-digit' })}</span><span className="meetup-month">{new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</span></div><div className="meetup-details"><h3>{event.title}</h3><p>{event.description || 'Come meet people and share a good experience.'}</p><div className="meetup-meta"><span>◷ {event.startTime?.slice(0, 5)}</span><span>⌖ {event.locationName}</span></div>{event.creator?.id === ownId ? <button className="outline-button" onClick={() => void openOrganizerRequests(event.id)}>Manage RSVPs <span>↗</span></button> : <button className="outline-button" disabled={myRsvpIds.has(event.id)} onClick={() => void onJoin(event.id)}>{myRsvpIds.has(event.id) ? 'Request sent' : 'Ask to join'} <span>↗</span></button>}</div>{managedMeetup === event.id && <div className="meetup-rsvp-panel"><div className="rsvp-panel-heading"><b>Join requests</b><button onClick={() => setManagedMeetup(null)}>Close</button></div>{requestBusy ? <small>Loading requests…</small> : organizerRequests.length === 0 ? <small>No requests for this meetup yet.</small> : organizerRequests.filter(request => request.status === 'PENDING').map(request => <div className="rsvp-row" key={request.id}><span>{request.requesterName}</span><div><button onClick={async () => { await onManageRsvp(request.id, 'accept'); await openOrganizerRequests(event.id) }}>Accept</button><button onClick={async () => { await onManageRsvp(request.id, 'reject'); await openOrganizerRequests(event.id) }}>Decline</button></div></div>)}</div>}</article>)}</div>}</> : activeRsvps.length === 0 ? <Empty title="No meetup requests yet" copy="Ask to join a meetup and track the RSVP here."/> : <div className="request-list">{activeRsvps.map(request => <article className="request-card" key={request.id}><span className="rsvp-date">{labels[request.status] ?? request.status}</span><div className="request-copy"><h3>{request.meetupTitle}</h3><p>{request.status === 'ACCEPTED' ? 'You’re on the attendee list.' : 'Waiting for the organizer to respond.'}</p></div><div className="request-actions"><button className="text-button" onClick={() => void onCancelRsvp(request.id)}>{request.status === 'ACCEPTED' ? 'Leave meetup' : 'Withdraw request'}</button></div></article>)}</div>}</>
 }
 
 function CreateMeetupModal({ onClose, onCreate }: { onClose: () => void; onCreate: (event: Omit<Meetup, 'id' | 'creator'>) => Promise<void> }) {
