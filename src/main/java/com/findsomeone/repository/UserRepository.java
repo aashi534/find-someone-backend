@@ -21,7 +21,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
             + "and (:query is null or "
             + "lower(u.name) like lower(concat('%', :query, '%')) or "
             + "lower(coalesce(u.bio, '')) like lower(concat('%', :query, '%'))) "
+            + "and (:city is null or lower(coalesce(u.city, '')) = lower(:city)) "
             + "order by u.name asc")
     List<User> searchDiscoverableUsers(@Param("purpose") ConnectionPurpose purpose,
-                                       @Param("query") String query);
+                                       @Param("query") String query,
+                                       @Param("city") String city);
 }

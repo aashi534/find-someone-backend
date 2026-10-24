@@ -21,6 +21,8 @@ public class User {
     @Column(unique = true)
     private String email;
     private String bio;
+    @Column(length = 100)
+    private String city;
 
     @JsonIgnore
     @Column(name = "linkedin_subject", unique = true)
@@ -81,6 +83,14 @@ public class User {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
     }
 
     @JsonIgnore

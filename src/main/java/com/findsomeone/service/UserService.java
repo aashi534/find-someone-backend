@@ -38,12 +38,14 @@ public class UserService {
     }
 
     public List<UserProfileResponse> getDiscoverableUsers(
-            Long viewerId, ConnectionPurpose purpose, String query) {
+            Long viewerId, ConnectionPurpose purpose, String query, String city) {
         java.util.Set<Long> blockedUserIds = java.util.Set.copyOf(
                 blockRepository.findAllBlockedUserIds(viewerId));
         String normalizedQuery = query == null || query.isBlank()
                 ? null : query.trim();
-        return userRepository.searchDiscoverableUsers(purpose, normalizedQuery)
+        String normalizedCity = city == null || city.isBlank()
+                ? null : city.trim();
+        return userRepository.searchDiscoverableUsers(purpose, normalizedQuery, normalizedCity)
                 .stream().filter(user -> !user.getId().equals(viewerId)
                         && !blockedUserIds.contains(user.getId()))
                 .map(this::toProfile).toList();
@@ -53,6 +55,7 @@ public class UserService {
         User user = findUser(id);
         if (request.name() != null) user.setName(request.name().trim());
         if (request.bio() != null) user.setBio(request.bio().trim());
+        if (request.city() != null) user.setCity(request.city().trim());
         if (request.connectionPurposes() != null) {
             user.setConnectionPurposes(request.connectionPurposes());
         }
@@ -68,6 +71,7 @@ public class UserService {
     private UserProfileResponse toProfile(User user) {
         return new UserProfileResponse(
                 user.getId(), user.getName(), user.getBio(),
+                user.getCity(),
                 user.getConnectionPurposes(), user.getIdentityVerificationStatus(),
                 user.isEmailVerified());
     }

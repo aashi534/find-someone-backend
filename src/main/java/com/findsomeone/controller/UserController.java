@@ -27,12 +27,17 @@ public class UserController {
     @GetMapping
     public List<UserProfileResponse> getDiscoverableUsers(
             @RequestParam(required = false) ConnectionPurpose purpose,
-            @RequestParam(required = false) String query) {
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String city) {
         if (query != null && query.length() > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "query must be 100 characters or fewer");
         }
-        return userService.getDiscoverableUsers(currentUserId(), purpose, query);
+        if (city != null && city.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "city must be 100 characters or fewer");
+        }
+        return userService.getDiscoverableUsers(currentUserId(), purpose, query, city);
     }
 
     @GetMapping("/{id}")

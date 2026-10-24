@@ -11,6 +11,7 @@ export type Profile = {
   id: number
   name: string | null
   bio: string | null
+  city: string | null
   connectionPurposes: Purpose[]
   identityVerificationStatus: 'UNVERIFIED' | 'VERIFIED'
   emailVerified: boolean
@@ -57,8 +58,7 @@ export type Message = {
 export type Meetup = {
   id: number
   title: string
-  description: string | null
-  date: string
+  description: string | null  date: string
   startTime: string
   endTime: string | null
   locationName: string
@@ -117,20 +117,20 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message = await response.text()
     throw new Error(message || `Request failed (${response.status})`)
   }
-  if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  if (response.status === 204) return undefined as T  return response.json() as Promise<T>
 }
 
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
 
 export const api = {
   me: () => request<Profile>('/users/me'),
-  updateProfile: (profile: Pick<Profile, 'name' | 'bio' | 'connectionPurposes'>) =>
+  updateProfile: (profile: Pick<Profile, 'name' | 'bio' | 'city' | 'connectionPurposes'>) =>
     request<Profile>('/users/me', { method: 'PATCH', body: JSON.stringify(profile) }),
-  profiles: (purpose: string, query: string) => {
+  profiles: (purpose: string, query: string, city: string) => {
     const params = new URLSearchParams()
     if (purpose) params.set('purpose', purpose)
     if (query) params.set('query', query)
+    if (city) params.set('city', city)
     const search = params.toString()
     return request<Profile[]>(`/users${search ? `?${search}` : ''}`)
   },

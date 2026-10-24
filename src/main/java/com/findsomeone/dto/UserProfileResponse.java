@@ -8,6 +8,7 @@ public record UserProfileResponse(
         Long id,
         String name,
         String bio,
+        String city,
         Set<ConnectionPurpose> connectionPurposes,
         IdentityVerificationStatus identityVerificationStatus,
         boolean emailVerified) {

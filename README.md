@@ -57,7 +57,6 @@ cd frontend
 npm install
 npm run dev
 ```
-
 Open `http://localhost:5173`. Vite proxies API calls to the backend on port 8080. The LinkedIn sign-in flow opens the backend directly, then returns to the frontend. For another backend URL, copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_BACKEND_ORIGIN` and `VITE_API_BASE_URL` there.
 
 ### Try the main flows
@@ -76,10 +75,10 @@ All routes below require a valid application JWT.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/users?purpose=FRIENDSHIP&query=designer` | Search discoverable profiles by purpose and name/bio text (either filter is optional) |
+| `GET` | `/users?purpose=FRIENDSHIP&query=designer&city=Bengaluru` | Search discoverable profiles by purpose, name/bio text, and optional city |
 | `GET` | `/users/{id}` | View a discoverable profile |
 | `GET` | `/users/me` | View the signed-in profile |
-| `PATCH` | `/users/me` | Update name, bio, purposes, and discoverability |
+| `PATCH` | `/users/me` | Update name, bio, city, purposes, and discoverability |
 | `POST` | `/connections/requests` | Send a request with recipient, purpose, and optional note |
 | `GET` | `/connections/requests/incoming` | View received requests |
 | `GET` | `/connections/requests/outgoing` | View sent requests |
@@ -117,7 +116,6 @@ Meetup routes also require a valid application JWT. A member can see only their 
 When an accepted attendee leaves a full meetup, the RSVP is cancelled and the available slot is reopened. Only the requester can withdraw or leave; organizers reject pending requests through the dedicated reject action.
 
 Example request body:
-
 ```json
 {
   "recipientId": 42,
